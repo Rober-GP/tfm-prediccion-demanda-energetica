@@ -1,0 +1,41 @@
+# TFM — Predicción de demanda energética
+# Instalación:  pip install -r requirements.txt
+
+# ── Datos y cálculo ─────────────────────────────────────────────────────────
+pandas>=2.0
+numpy>=1.24
+pyarrow>=14.0          # formato Parquet
+
+# ── Peticiones a APIs ───────────────────────────────────────────────────────
+requests>=2.31
+
+# ── Gestión de credenciales ─────────────────────────────────────────────────
+python-dotenv>=1.0
+
+# ── Visualización ───────────────────────────────────────────────────────────
+matplotlib>=3.7
+seaborn>=0.13
+
+# ── Series temporales y estadística ─────────────────────────────────────────
+statsmodels>=0.14      # ARIMA, MSTL, ACF/PACF, test ADF
+scipy>=1.11
+
+# ── Calendario laboral español ──────────────────────────────────────────────
+holidays>=0.40
+
+# ── Entorno ─────────────────────────────────────────────────────────────────
+jupyter>=1.0
+ipykernel>=6.25
+
+# ── Notebook 02 (modelado) — descomentar cuando toque ───────────────────────
+# scikit-learn>=1.3
+# xgboost>=2.0
+# lightgbm>=4.1
+# prophet>=1.1
+# optuna>=3.4
+# shap>=0.44
+# skforecast>=0.11
+
+# ── Aplicación web — descomentar en la fase de despliegue ───────────────────
+# streamlit>=1.30
+# plotly>=5.18
