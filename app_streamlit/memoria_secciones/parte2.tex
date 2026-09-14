@@ -1,0 +1,459 @@
+% =============================================================================
+%  SECCIONES REDACTADAS — PARTE 2
+%  Capítulo 4 (Metodología): secciones 4.1, 4.5, 4.6, 4.7, 4.8
+%  Incluye además correcciones a 4.2.1 y 4.4.3
+% =============================================================================
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE LA SECCIÓN 4.1                                                 ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\section{Arquitectura del sistema}
+
+El sistema se organiza en tres capas desacopladas, según se recoge en la
+Figura~\ref{fig:arquitectura}. Esta separación permite desarrollar y validar cada
+una de forma independiente, y resulta especialmente conveniente en un trabajo con
+componente de despliegue: la capa de aplicación puede evolucionar sin afectar al
+procedimiento de entrenamiento, y viceversa.
+
+\begin{figure}[H]
+\centering
+% NOTA: sustituir por el diagrama elaborado con draw.io o Excalidraw
+\framebox[0.9\textwidth][c]{\rule{0pt}{5cm}\textit{[Diagrama de arquitectura]}}
+\caption{Arquitectura general del sistema propuesto}
+\label{fig:arquitectura}
+\end{figure}
+
+\subsection*{Capa de datos}
+
+Responsable de la obtención, el tratamiento y el almacenamiento de la información.
+Integra las tres fuentes descritas en la sección anterior mediante llamadas a sus
+respectivas interfaces de programación, aplica el procedimiento de limpieza e
+imputación y persiste el resultado en formato Parquet. Este almacenamiento
+intermedio evita la dependencia de la red en ejecuciones sucesivas y garantiza la
+reproducibilidad del análisis.
+
+\subsection*{Capa de modelos}
+
+Comprende la construcción de variables, el entrenamiento y la evaluación. Su
+componente central es el módulo \texttt{prediccion.py}, que implementa la
+generación de características y la función de predicción.
+
+Conviene destacar una decisión de diseño con implicaciones prácticas
+considerables: \textbf{este módulo es compartido por el procedimiento de
+entrenamiento y por la aplicación}. La alternativa —implementar la construcción de
+variables por duplicado— expone el sistema al fenómeno conocido como
+\textit{training/serving skew}: si ambas implementaciones divergen, aunque sea en
+un detalle menor, el modelo recibe en explotación entradas distintas de aquellas
+sobre las que fue entrenado, y su rendimiento se degrada sin que ningún
+procedimiento falle de manera visible. Compartir el código elimina esa
+posibilidad por construcción.
+
+\subsection*{Capa de aplicación}
+
+Comprende la interfaz web, la obtención de datos en tiempo real y la generación de
+recomendaciones. Se apoya en el modelo serializado que produce la capa anterior y
+opera de forma autónoma respecto a ella.
+
+Un principio rector de esta capa es la \textbf{degradación controlada}: el fallo
+de una fuente externa no debe interrumpir el servicio. Si la previsión
+meteorológica no está disponible, se recurre a una estimación climatológica y se
+advierte de ello al usuario; si falla la consulta de precios, la aplicación
+continúa operando sin esa información. Únicamente la serie de demanda resulta
+imprescindible, y su ausencia se comunica mediante un mensaje explícito.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE LA SECCIÓN 4.5                                                 ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\section{Estrategia de validación}
+\label{sec:validacion}
+
+\subsection*{Improcedencia de la validación cruzada aleatoria}
+
+La validación cruzada por particiones aleatorias, procedimiento estándar en
+aprendizaje supervisado, resulta \textbf{metodológicamente inadmisible} en series
+temporales. Al asignar observaciones a los conjuntos de entrenamiento y prueba sin
+atender a su orden, el modelo se entrena con datos posteriores a aquellos que debe
+predecir. Las métricas resultantes son optimistas y carecen de correspondencia con
+el comportamiento en explotación.
+
+\subsection*{Validación de origen rodante}
+
+Se adopta en su lugar la validación de origen rodante
+(\textit{rolling origin} o \textit{walk-forward}). El procedimiento fija un
+instante de corte, entrena con la totalidad de las observaciones anteriores,
+predice las veinticuatro horas siguientes y repite la operación desplazando el
+corte:
+
+\begin{verbatim}
+Origen 1:  [----- entrenamiento -----][test]
+Origen 2:  [------- entrenamiento -------][test]
+Origen 3:  [--------- entrenamiento ---------][test]
+\end{verbatim}
+
+Este esquema reproduce las condiciones de explotación: en cada origen el modelo
+dispone exclusivamente de información anterior al instante de predicción.
+
+\subsection*{Elección del paso entre orígenes}
+
+La separación entre orígenes exige una precaución que no siempre se explicita en
+la literatura. Una primera configuración empleó un paso de ciento sesenta y ocho
+horas —exactamente una semana— con el propósito de cubrir un periodo amplio. El
+resultado fue que \textbf{los catorce orígenes recayeron sobre el mismo día de la
+semana}, de modo que la evaluación excluía por completo sábados y domingos.
+
+El sesgo introducido no era neutral. Beneficiaba específicamente a los modelos que
+predicen a partir del día anterior, pues todos los días evaluados eran laborables
+precedidos de laborables. Detectada la anomalía, se sustituyó el paso por ciento
+veinte horas —cinco días—, valor que no es múltiplo de la semana y que con catorce
+orígenes proporciona exactamente dos observaciones de cada día. Al repetir la
+evaluación, el error del modelo ingenuo diario se elevó de forma apreciable, lo
+que confirmó el diagnóstico.
+
+La configuración definitiva es por tanto:
+
+\begin{itemize}
+  \item Horizonte de predicción: 24 horas
+  \item Número de orígenes: 14
+  \item Separación entre orígenes: 120 horas (5 días)
+  \item Periodo cubierto: aproximadamente 70 días
+\end{itemize}
+
+\subsection*{Evaluación complementaria en días festivos}
+
+El esquema anterior distribuye los orígenes de forma regular, por lo que la
+coincidencia con un día festivo queda librada al azar. En la evaluación realizada
+ningún origen recayó sobre una festividad, circunstancia que habría dejado sin
+contrastar el hallazgo principal del análisis exploratorio.
+
+Se construyó en consecuencia un conjunto de evaluación \textbf{dirigido},
+seleccionando ocho orígenes de modo que el día completo a predecir fuese festivo.
+Este conjunto está deliberadamente sesgado hacia casos difíciles y no representa
+el rendimiento medio del sistema; se reporta como análisis complementario en la
+sección~\ref{sec:festivos}.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE LA SECCIÓN 4.6 COMPLETA (4.6, 4.6.1, 4.6.2, 4.6.3)             ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\section{Modelos desarrollados}
+
+Se han evaluado diez formulaciones, organizadas en tres niveles de complejidad
+creciente. Todas comparten el mismo esquema de validación, los mismos orígenes y
+las mismas métricas, de modo que la comparación resulta homogénea.
+
+\subsection{Línea base}
+
+\subsubsection*{Modelos ingenuos}
+
+Antes de cualquier formulación estadística se establece el error que se obtiene
+sin modelo alguno. Se consideran tres alternativas:
+
+\begin{enumerate}
+  \item \textbf{Ingenuo diario}: la demanda de cada hora del día siguiente
+        coincide con la observada a esa misma hora del día actual.
+  \item \textbf{Ingenuo semanal}: coincide con la del mismo día de la semana
+        anterior. A diferencia del anterior, recoge el efecto laborable/festivo.
+  \item \textbf{Perfil semanal}: media por hora del día sobre las cuatro últimas
+        semanas.
+\end{enumerate}
+
+La inclusión de estas referencias responde a una observación recurrente en la
+literatura \parencite{hong2016probabilistic}: un número considerable de trabajos
+publicados presenta mejoras que en realidad no superan la predicción ingenua
+estacional.
+
+\subsubsection*{Modelos estadísticos clásicos}
+
+\textbf{SARIMA.} Se ajusta un modelo SARIMA$(2,0,1)(1,1,1)_{24}$, con órdenes
+orientados por las funciones de autocorrelación. El elevado coste computacional
+del ajuste con periodo estacional 24 obliga a restringir el entrenamiento a una
+ventana de sesenta días.
+
+\textbf{SARIMAX con términos de Fourier.} Alternativa que representa las
+estacionalidades diaria, semanal y anual mediante pares seno-coseno introducidos
+como regresores externos, reservando la parte ARIMA para la autocorrelación de
+corto plazo. La comparación de tiempos de ajuste justifica empíricamente esta
+elección: mientras el SARIMA clásico requiere del orden de minutos sobre una
+ventana reducida, la formulación con Fourier procesa la serie completa en
+segundos.
+
+Una primera especificación de este modelo empleó $d=0$ sin término constante. La
+inspección de los resultados reveló un sesgo sistemático —subestimación en los
+periodos de demanda elevada y sobrestimación en los de demanda reducida—
+característico de la reversión a la media del conjunto de entrenamiento. La
+corrección consistió en aplicar una diferenciación de primer orden, con lo que el
+modelo opera sobre incrementos y se adapta al nivel local.
+
+\textbf{Prophet.} Se configura con estacionalidad diaria, semanal y anual, e
+incorpora el calendario de festivos con ventanas de un día a cada lado para
+recoger el efecto de arrastre.
+
+\subsection{Modelos de aprendizaje automático}
+
+Se evalúan cuatro formulaciones sobre el conjunto de variables descrito en la
+sección~\ref{sec:features}:
+
+\begin{itemize}
+  \item \textbf{Ridge}. Regresión lineal con regularización $L_2$, precedida de
+        estandarización. Actúa como referencia lineal y permite aislar la
+        aportación de la no linealidad.
+
+  \item \textbf{Random Forest} \parencite{breiman2001rf}. Cien árboles, profundidad
+        máxima doce y diez observaciones mínimas por hoja. La configuración es
+        deliberadamente contenida: el procedimiento de validación exige catorce
+        reentrenamientos sobre más de veinte mil observaciones, y una
+        parametrización más ambiciosa resultaba impracticable.
+
+  \item \textbf{XGBoost} \parencite{chen2016xgboost}. Cuatrocientos árboles, tasa
+        de aprendizaje 0,05, profundidad máxima siete, submuestreo de
+        observaciones y variables al 80\,\%.
+
+  \item \textbf{LightGBM} \parencite{ke2017lightgbm}. Parámetros equivalentes,
+        con cuarenta y ocho hojas por árbol.
+\end{itemize}
+
+\subsection{Sobre la optimización de hiperparámetros}
+
+No se ha realizado una búsqueda sistemática de hiperparámetros. La decisión es
+deliberada y se fundamenta en dos consideraciones.
+
+En primer lugar, los resultados obtenidos con configuraciones convencionales
+superan holgadamente los umbrales fijados en los objetivos del trabajo, por lo que
+el margen de mejora esperable no justifica el coste computacional de una búsqueda
+exhaustiva.
+
+En segundo lugar, y con mayor peso, la evidencia acumulada en las competiciones M
+\parencite{makridakis2022m5} indica que la calidad de las variables construidas
+determina el rendimiento en mayor medida que el ajuste fino de los
+hiperparámetros. El esfuerzo se ha concentrado en consecuencia sobre la ingeniería
+de características, guiada por el análisis exploratorio.
+
+La optimización mediante Optuna se recoge como línea de trabajo futuro.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE LA SECCIÓN 4.7 (conservando las ecuaciones existentes)         ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\section{Métricas de evaluación}
+
+Se emplean cuatro métricas complementarias, ninguna de las cuales resulta
+suficiente por sí sola.
+
+El \textbf{error absoluto medio} expresa la desviación en megavatios y resulta
+directamente interpretable, si bien depende de la escala:
+
+\begin{equation}
+\text{MAE} = \frac{1}{n}\sum_{i=1}^{n}\left|y_i - \hat{y}_i\right|
+\end{equation}
+
+La \textbf{raíz del error cuadrático medio} penaliza en mayor medida las
+desviaciones grandes, lo que la hace sensible a los valores extremos:
+
+\begin{equation}
+\text{RMSE} = \sqrt{\frac{1}{n}\sum_{i=1}^{n}\left(y_i - \hat{y}_i\right)^2}
+\end{equation}
+
+El \textbf{error porcentual absoluto medio} es adimensional y constituye la
+referencia habitual en la literatura sobre predicción de carga, lo que permite
+contrastar los resultados con los trabajos publicados:
+
+\begin{equation}
+\text{MAPE} = \frac{100}{n}\sum_{i=1}^{n}\left|\frac{y_i - \hat{y}_i}{y_i}\right|
+\end{equation}
+
+El \textbf{error porcentual absoluto medio simétrico} corrige la asimetría del
+anterior frente a sobrestimaciones e infraestimaciones:
+
+\begin{equation}
+\text{sMAPE} = \frac{100}{n}\sum_{i=1}^{n}
+  \frac{2\left|y_i - \hat{y}_i\right|}{\left|y_i\right| + \left|\hat{y}_i\right|}
+\end{equation}
+
+\subsection*{Media y mediana}
+
+Las métricas se calculan sobre cada uno de los catorce orígenes y se resumen
+mediante media y mediana. La distinción no es accesoria: un único día atípico
+—una festividad, un episodio meteorológico extremo— puede duplicar la media sin
+que ello refleje el comportamiento habitual del modelo.
+
+Se reportan por tanto ambos estadísticos, junto con la desviación típica entre
+orígenes y el peor caso observado. La mediana constituye el criterio principal de
+ordenación, por su robustez frente a valores extremos.
+
+\subsection*{Métricas de entrenamiento y de producción}
+
+Siguiendo la indicación expresa de la dirección del trabajo, se registran
+conjuntamente el error dentro de muestra —sobre las observaciones de
+entrenamiento— y fuera de muestra —sobre las predicciones efectivas—. Una
+diferencia sustancial entre ambos indica que el modelo memoriza en lugar de
+generalizar.
+
+Debe precisarse un matiz relativo a los modelos estadísticos: en ellos el ajuste
+dentro de muestra corresponde a una predicción de un paso adelante, mientras que
+la evaluación se realiza a veinticuatro pasos. La comparación resulta en
+consecuencia poco informativa. En los modelos de aprendizaje automático, en
+cambio, ambos errores se calculan sobre el mismo horizonte y la diferencia sí es
+interpretable.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE LA SECCIÓN 4.8                                                 ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\section{Desarrollo de la aplicación web}
+
+\subsection*{Diseño funcional}
+
+La aplicación se dirige a un usuario sin formación técnica en el ámbito
+energético. Su función es traducir la predicción numérica en una recomendación
+comprensible. Se estructura en cinco bloques:
+
+\begin{enumerate}
+  \item \textbf{Indicadores de situación}: demanda actual, máximo y mínimo
+        previstos, y franja horaria más favorable.
+  \item \textbf{Recomendación en lenguaje natural}, generada automáticamente a
+        partir de la predicción.
+  \item \textbf{Representación gráfica} de la serie histórica y la previsión, con
+        las franjas recomendadas destacadas.
+  \item \textbf{Tabla de horas} ordenada por demanda prevista, con el precio de
+        mercado cuando está disponible.
+  \item \textbf{Contexto meteorológico} y nota metodológica sobre el modelo y sus
+        limitaciones.
+\end{enumerate}
+
+\subsection*{Tecnologías empleadas}
+
+La interfaz se ha desarrollado con Streamlit \parencite{streamlit}, entorno que
+permite construir aplicaciones de datos en Python sin requerir desarrollo
+específico de interfaz. Las representaciones gráficas emplean Plotly, y el modelo
+se serializa mediante \texttt{joblib}.
+
+\subsection*{Obtención de datos en tiempo real}
+
+La aplicación consulta tres fuentes en cada ejecución. La demanda reciente se
+obtiene de la interfaz REData, en bloques de cinco días: las peticiones de mayor
+amplitud provocan errores de servidor, dado que el servicio publica con resolución
+de diez minutos. La previsión meteorológica procede del servicio de predicción
+horaria municipal de AEMET, con horizonte de cuarenta y ocho horas. El precio de
+mercado se recupera igualmente de REData, con carácter complementario.
+
+\subsection*{Predicción más allá del horizonte nativo}
+
+El modelo se ha entrenado para un horizonte de veinticuatro horas, límite
+impuesto por la disponibilidad de los desfases: predecir el instante $t+25$
+requeriría conocer $t+1$, aún no observado.
+
+Para alcanzar las cuarenta y ocho horas se aplica un \textbf{esquema recursivo}:
+las predicciones del primer tramo se incorporan a la serie y se emplean para
+calcular los desfases del segundo. El procedimiento acumula error, circunstancia
+que se cuantifica en el capítulo de resultados y de la que se advierte al usuario
+en la propia interfaz.
+
+\subsection*{Estrategia de despliegue}
+
+La aplicación se despliega en Streamlit Community Cloud, servicio gratuito
+integrado con el repositorio de código. El modelo serializado se versiona junto
+con el resto del proyecto, mientras que las credenciales de AEMET se gestionan
+mediante variables de entorno y quedan excluidas del control de versiones.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  CORRECCIÓN — último párrafo de la sección 4.2.1                          ║
+% ║  El texto actual dice "mes a mes"; la implementación final trocea en       ║
+% ║  bloques de cinco días para evitar errores del servidor                    ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+% La descarga se ejecuta de forma fraccionada en bloques de pocos días, con
+% reintentos automáticos y un intervalo de espera entre peticiones. El
+% fraccionamiento no obedece únicamente a la cortesía con el servicio: las
+% peticiones que abarcan periodos extensos provocan errores \texttt{502 Bad
+% Gateway}, dado que el widget devuelve del orden de ciento cuarenta registros
+% diarios. Los resultados se almacenan localmente en formato Parquet para evitar
+% dependencias de red en ejecuciones posteriores.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE LA SECCIÓN 4.4.3                                               ║
+% ║  Añadir \label{sec:features} al inicio de la sección 4.4                   ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\subsection{Prevención de fuga de información}
+\label{sec:fuga}
+
+La construcción de variables a partir de la propia serie objetivo expone el
+procedimiento a la fuga de información, que constituye el riesgo metodológico
+principal en la aplicación de aprendizaje automático a series temporales.
+
+\subsubsection*{Formulación del problema}
+
+Para un horizonte de veinticuatro horas, la predicción del instante $t+24$ debe
+elaborarse desde el instante $t$. En ese momento, la disponibilidad efectiva de
+cada variable es la que recoge la Tabla~\ref{tab:disponibilidad}.
+
+\begin{table}[H]
+\centering
+\caption{Disponibilidad de las variables en el instante de predicción}
+\label{tab:disponibilidad}
+\begin{tabular}{|l|l|c|}
+\hline
+\rowcolor{grisclaro}
+\textbf{Variable en $t+24$} & \textbf{Equivale a} & \textbf{¿Conocida en $t$?} \\
+\hline
+\texttt{lag\_1h}   & $y_{t+23}$ & No \\
+\hline
+\texttt{lag\_2h}   & $y_{t+22}$ & No \\
+\hline
+\texttt{lag\_3h}   & $y_{t+21}$ & No \\
+\hline
+\texttt{lag\_24h}  & $y_{t}$ & Sí \\
+\hline
+\texttt{lag\_168h} & $y_{t-144}$ & Sí \\
+\hline
+\texttt{media\_24h}  & media de $t \ldots t+23$ & No \\
+\hline
+\texttt{media\_168h} & ventana que alcanza $t+23$ & No \\
+\hline
+Calendario y meteorología & conocidos de antemano & Sí \\
+\hline
+\end{tabular}
+\end{table}
+
+Merece atención el caso de los estadísticos móviles. Su construcción en el
+análisis exploratorio empleó un desplazamiento de una posición, adecuado para
+predicción a un paso. Para un horizonte de veinticuatro horas, sin embargo, la
+ventana de \texttt{media\_24h} en el instante $t+24$ abarca de $t$ a $t+23$,
+tramo en su mayor parte desconocido. \textbf{La contaminación no se limita por
+tanto a los desfases de orden reducido}, extremo que no resulta evidente a simple
+vista.
+
+\subsubsection*{Criterio adoptado}
+
+Se establece la regla siguiente: para un horizonte de $h$ periodos únicamente son
+admisibles los desfases de orden $k \geq h$ y los estadísticos móviles cuya
+ventana se cierre antes del instante de predicción. En consecuencia:
+
+\begin{itemize}
+  \item Se descartan \texttt{lag\_1h}, \texttt{lag\_2h} y \texttt{lag\_3h}.
+  \item Se descartan los estadísticos móviles del análisis exploratorio y se
+        recalculan desplazando la serie el horizonte completo.
+  \item Se conservan los desfases de 24, 25, 48 y 168 horas, así como las
+        variables de calendario y meteorológicas.
+\end{itemize}
+
+\subsubsection*{Cuantificación del efecto}
+
+El efecto de la fuga no se ha asumido, sino medido. Entrenando el mismo modelo con
+ambos conjuntos de variables sobre idénticos orígenes de validación se obtiene que
+\textbf{la inclusión de las variables contaminadas reduce el error aparente en un
+59\,\%}.
+
+Dicho de otro modo: un modelo que incorporase los desfases de orden reducido
+aparentaría un rendimiento sustancialmente superior al que alcanzaría en
+explotación, donde esas variables sencillamente no están disponibles. La magnitud
+del efecto justifica el tratamiento explícito que recibe esta cuestión.

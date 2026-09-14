@@ -1,0 +1,668 @@
+% =============================================================================
+%  SECCIONES REDACTADAS — PARTE 3
+%  Capítulo 5 (Discusión): secciones 5.2 a 5.6
+%  Capítulo 6 (Conclusiones): completo
+% =============================================================================
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE LA SECCIÓN 5.2 COMPLETA, INCLUIDA LA TABLA 5.1                 ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\section{Comparativa de rendimiento de los modelos}
+
+La Tabla~\ref{tab:resultados} recoge el rendimiento de las diez formulaciones
+evaluadas, ordenadas por error mediano. Todas comparten los mismos catorce
+orígenes de validación, el mismo horizonte y las mismas métricas.
+
+\begin{table}[H]
+\centering
+\caption{Comparativa de rendimiento de los modelos evaluados}
+\label{tab:resultados}
+\small
+\begin{tabular}{|l|r|r|r|r|r|r|}
+\hline
+\rowcolor{grisclaro}
+\textbf{Modelo} & \textbf{MAPE} & \textbf{MAPE} & \textbf{Desv.} &
+\textbf{Peor} & \textbf{MAE} & \textbf{Frente al} \\
+\rowcolor{grisclaro}
+ & \textbf{medio} & \textbf{mediana} & \textbf{típica} & \textbf{caso} &
+\textbf{(MW)} & \textbf{ingenuo} \\
+\hline
+\multicolumn{7}{|l|}{\textit{Aprendizaje automático}} \\
+\hline
+XGBoost          & 1,65 & \textbf{1,34} & 0,70 & 3,10 & 470 & $+$56,2\,\% \\
+\hline
+Random Forest    & 1,86 & 1,47 & 0,98 & 3,98 & 520 & $+$51,9\,\% \\
+\hline
+LightGBM         & 1,67 & 1,53 & 0,75 & 3,71 & 473 & $+$50,0\,\% \\
+\hline
+Ridge            & 2,55 & 1,94 & 1,56 & 6,22 & 717 & $+$36,6\,\% \\
+\hline
+\multicolumn{7}{|l|}{\textit{Línea base estadística}} \\
+\hline
+SARIMA clásico   & 3,95 & 2,42 & 2,98 & 10,29 & 1.120 & $+$20,9\,\% \\
+\hline
+Prophet          & 4,86 & 4,78 & 1,28 & 7,34 & 1.370 & $-$56,4\,\% \\
+\hline
+SARIMAX + Fourier & 5,66 & 4,90 & 3,18 & 13,02 & 1.565 & $-$60,3\,\% \\
+\hline
+\multicolumn{7}{|l|}{\textit{Modelos ingenuos}} \\
+\hline
+Ingenuo semanal  & 3,92 & 3,06 & 2,64 & 10,35 & 1.108 & referencia \\
+\hline
+Ingenuo diario   & 4,98 & 3,21 & 4,57 & 15,36 & 1.387 & $-$4,9\,\% \\
+\hline
+Perfil semanal   & 8,54 & 8,30 & 3,33 & 13,60 & 2.434 & $-$171,2\,\% \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection*{Resultado principal}
+
+El modelo XGBoost alcanza un error mediano del \textbf{1,34\,\%}, lo que supone
+una mejora del \textbf{56,2\,\%} sobre la mejor línea base ingenua. En términos
+absolutos, el error absoluto medio de 470\,MW representa un 1,7\,\% sobre una
+demanda media de 28.263\,MW.
+
+Ambas cifras superan holgadamente los umbrales establecidos en los objetivos del
+trabajo —MAPE inferior al 8\,\% y MAE por debajo del 5\,\% del consumo medio— y
+se sitúan en el orden de magnitud que maneja el propio operador del sistema en
+sus previsiones a día vista.
+
+\subsection*{Los modelos estadísticos no superan la línea base}
+
+Un resultado que merece reportarse con la misma claridad es que \textbf{Prophet y
+SARIMAX con términos de Fourier obtienen peores resultados que la predicción
+ingenua semanal}. Únicamente el SARIMA clásico logra superarla, con una mejora del
+20,9\,\%.
+
+Este hallazgo no constituye una anomalía. La predicción ingenua estacional es una
+referencia exigente en demanda eléctrica, precisamente porque la serie presenta
+una estructura semanal muy marcada. La observación de
+\textcite{hong2016probabilistic} sobre la ausencia habitual de comparación con
+líneas base cobra aquí pleno sentido: un trabajo que hubiese omitido estos
+modelos ingenuos habría presentado a Prophet como una aportación valiosa cuando
+en realidad no mejora la alternativa trivial.
+
+En el caso de SARIMAX, el análisis por origen revela que sus dos peores
+resultados corresponden a domingos. La causa es identificable: con dos armónicos
+para el periodo de ciento sesenta y ocho horas, la forma semanal representable es
+una sinusoide suave, incapaz de reproducir la transición abrupta entre días
+laborables y fin de semana.
+
+\subsection*{Estabilidad frente a precisión}
+
+La columna de desviación típica introduce un matiz relevante. El modelo ingenuo
+diario presenta una mediana aceptable (3,21\,\%) pero la mayor dispersión de todo
+el conjunto (4,57), con un peor caso del 15,36\,\%. El análisis por origen muestra
+que sus fallos se concentran en los lunes, con errores del 15,36\,\% y el
+13,94\,\%, frente a valores próximos al 2\,\% en el resto. La explicación es
+inmediata: predice el lunes a partir del domingo.
+
+Se trata de un modelo que funciona razonablemente bien la mayor parte del tiempo y
+falla de forma severa en circunstancias identificables. En un contexto de
+explotación, esa característica resulta más problemática que un error medio
+ligeramente superior pero estable.
+
+El contraste con Prophet ilustra el compromiso. Prophet obtiene el peor error
+mediano de las formulaciones estadísticas (4,78\,\%), pero la menor desviación
+típica con diferencia (1,28): nunca destaca y nunca falla estrepitosamente.
+
+\subsection*{Control del sobreajuste}
+
+La Tabla~\ref{tab:sobreajuste} recoge la comparación entre el error de
+entrenamiento y el de producción para los modelos de aprendizaje automático, donde
+ambos se calculan sobre el mismo horizonte y la comparación resulta por tanto
+interpretable.
+
+\begin{table}[H]
+\centering
+\caption{Error de entrenamiento frente a error de producción}
+\label{tab:sobreajuste}
+\begin{tabular}{|l|r|r|r|}
+\hline
+\rowcolor{grisclaro}
+\textbf{Modelo} & \textbf{Entrenamiento} & \textbf{Producción} & \textbf{Diferencia} \\
+\hline
+XGBoost       & 0,67\,\% & 1,65\,\% & $+$146\,\% \\
+\hline
+LightGBM      & 0,83\,\% & 1,67\,\% & $+$101\,\% \\
+\hline
+Random Forest & 1,38\,\% & 1,86\,\% & $+$35\,\% \\
+\hline
+Ridge         & 2,99\,\% & 2,55\,\% & $-$15\,\% \\
+\hline
+\end{tabular}
+\end{table}
+
+XGBoost presenta la mayor diferencia relativa, consecuencia esperable de su
+configuración con cuatrocientos árboles de profundidad siete. Random Forest exhibe
+la menor, coherente con su parametrización más restrictiva —profundidad doce y
+diez observaciones mínimas por hoja—, que penaliza la precisión a cambio de una
+mayor capacidad de generalización.
+
+El dato de Ridge requiere interpretación específica: su error de producción es
+\textbf{inferior} al de entrenamiento. Ello no responde a ninguna singularidad del
+modelo, sino a que \textbf{el periodo de evaluación resulta más benigno que la
+media del histórico de entrenamiento}. Las catorce ventanas se sitúan entre
+octubre y diciembre de 2024, tramo relativamente estable, mientras que el
+entrenamiento abarca tres años que incluyen la volatilidad de 2022.
+
+La implicación afecta a la lectura del resto de la tabla: si el conjunto de
+evaluación es más favorable que la media, las diferencias de los modelos de
+árboles están \textbf{infravaloradas}. En un periodo de mayor variabilidad cabría
+esperar una separación superior. Esta circunstancia se recoge entre las
+limitaciones del trabajo.
+
+\subsection*{Selección del modelo}
+
+XGBoost obtiene el mejor resultado en error mediano, en error absoluto medio y en
+la evaluación sobre días festivos, por lo que se selecciona como modelo
+definitivo.
+
+Conviene no obstante dejar constancia de que LightGBM constituye una alternativa
+defendible: su rendimiento en producción es prácticamente equivalente (1,67\,\%
+frente a 1,65\,\% de error medio), presenta la mitad de diferencia entre
+entrenamiento y producción, y su tiempo de ajuste es sensiblemente menor. En un
+escenario que exigiese reentrenamiento frecuente, esas propiedades podrían
+inclinar la elección.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE LA SECCIÓN 5.3                                                 ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\section{Análisis de la importancia de variables}
+
+% ─────────────────────────────────────────────────────────────────────────────
+% PENDIENTE: incorporar la figura 15_importancia_variables.png y la figura
+% 16_shap_summary.png generadas por el notebook 03, junto con el ranking
+% concreto de variables que devuelve la sección 6 de dicho cuaderno.
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{figuras/15_importancia_variables.png}
+\caption{Importancia de las variables en el modelo seleccionado}
+\label{fig:importancia}
+\end{figure}
+
+El análisis de importancia responde al objetivo específico OE6, relativo a la
+identificación de los factores con mayor influencia sobre la demanda.
+
+% COMPLETAR con el ranking concreto. Redacción orientativa:
+%
+% Las variables de mayor peso corresponden a los desfases de 168 y 24 horas,
+% seguidas de las variables de calendario. Este orden resulta coherente con los
+% hallazgos del análisis exploratorio: el periodograma identificó los ciclos
+% semanal y diario como los dominantes, y la clasificación de anomalías situó en
+% los festivos cerca del 70 % de las desviaciones significativas.
+
+\subsection*{Valores SHAP}
+
+La importancia nativa de los modelos de árboles indica con qué frecuencia se
+emplea cada variable, pero no en qué dirección ni bajo qué condiciones. Los
+valores SHAP \parencite{lundberg2017shap} descomponen cada predicción individual
+en la contribución aditiva de cada predictor, lo que permite un análisis más
+matizado.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{figuras/16_shap_summary.png}
+\caption{Valores SHAP del modelo seleccionado}
+\label{fig:shap}
+\end{figure}
+
+% COMPLETAR con la interpretación de la figura.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE LA SECCIÓN 5.4                                                 ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\section{Análisis de errores}
+
+Las métricas agregadas ocultan la distribución del error. Esta sección examina
+dónde falla el modelo, con especial atención a si corrige las deficiencias
+detectadas en la línea base.
+
+\subsection*{Error según el tipo de día}
+
+La Tabla~\ref{tab:tipodia} recoge el error desagregado entre días laborables y
+fines de semana.
+
+\begin{table}[H]
+\centering
+\caption{Error según el tipo de día (modelos de aprendizaje automático)}
+\label{tab:tipodia}
+\begin{tabular}{|l|r|r|r|}
+\hline
+\rowcolor{grisclaro}
+\textbf{Modelo} & \textbf{Laborable} & \textbf{Fin de semana} & \textbf{Diferencia} \\
+\hline
+XGBoost       & 1,53\,\% & 1,87\,\% & 0,34 \\
+\hline
+LightGBM      & 1,47\,\% & 1,99\,\% & 0,52 \\
+\hline
+Random Forest & 1,67\,\% & 2,55\,\% & 0,88 \\
+\hline
+Ridge         & 2,47\,\% & 2,76\,\% & 0,29 \\
+\hline
+\end{tabular}
+\end{table}
+
+La diferencia entre ambos tipos de día resulta reducida en los modelos de
+potenciación del gradiente, lo que indica que las variables de calendario cumplen
+su función.
+
+\subsection*{Corrección de las deficiencias de la línea base}
+
+El análisis por origen de la fase anterior había identificado dos patrones de
+fallo: el modelo ingenuo diario se degradaba los lunes y SARIMAX los domingos. La
+Tabla~\ref{tab:correccion} compara el comportamiento en esos mismos orígenes.
+
+\begin{table}[H]
+\centering
+\caption{Error en los orígenes problemáticos de la línea base}
+\label{tab:correccion}
+\begin{tabular}{|l|l|r|r|}
+\hline
+\rowcolor{grisclaro}
+\textbf{Origen} & \textbf{Modelo deficiente} & \textbf{Línea base} & \textbf{XGBoost} \\
+\hline
+Lunes 28-oct   & Ingenuo diario  & 15,36\,\% & 2,75\,\% \\
+\hline
+Lunes 2-dic    & Ingenuo diario  & 13,94\,\% & 1,48\,\% \\
+\hline
+Domingo 17-nov & SARIMAX         & 11,18\,\% & 1,08\,\% \\
+\hline
+Domingo 22-dic & SARIMAX         & 13,02\,\% & 1,24\,\% \\
+\hline
+Viernes 27-dic & Ingenuo semanal & 10,35\,\% & 2,01\,\% \\
+\hline
+\end{tabular}
+\end{table}
+
+La corrección es sistemática y de magnitud considerable. Confirma la hipótesis
+formulada al analizar la línea base: los fallos identificados obedecían a la
+ausencia de información de calendario, y los modelos que la incorporan los
+resuelven.
+
+\subsection*{Comportamiento lineal frente a no lineal}
+
+Un resultado con valor explicativo se obtiene al comparar Ridge con los modelos de
+árboles en esos mismos orígenes. Ridge mantiene errores del 6,30\,\% y el 5,10\,\%
+en los lunes problemáticos, y del 4,06\,\% en uno de los domingos, mientras las
+tres formulaciones basadas en árboles se sitúan por debajo del 3\,\%.
+
+La circunstancia resulta ilustrativa porque \textbf{Ridge dispone exactamente de
+las mismas variables}, incluida la indicadora de día laborable. Su limitación es
+estructural: al ser lineal, únicamente puede sumar un efecto constante asociado al
+tipo de día, sin capturar que \textbf{dicho efecto depende de la hora}. Un lunes a
+las cuatro de la madrugada se asemeja considerablemente a un domingo, mientras que
+a las nueve de la mañana la diferencia es máxima. Esa interacción entre hora y día
+de la semana solo la reproducen los modelos capaces de representar relaciones no
+lineales.
+
+\subsection*{Distribución del error a lo largo del día}
+
+El error presenta un mínimo en torno a las cinco de la madrugada (0,96\,\%) y un
+máximo a las diecisiete horas (2,63\,\%). El patrón es coherente con la estructura
+del problema: las horas de rampa —el ascenso matinal y el pico vespertino—
+concentran la mayor incertidumbre, mientras que el valle nocturno resulta
+altamente predecible.
+
+\subsection*{Calidad global del ajuste}
+
+El coeficiente de correlación entre valores observados y predichos alcanza 0,9931,
+con un error máximo de 1.948\,MW sobre una demanda media de 28.263\,MW. El sesgo
+medio es de $-204$\,MW, lo que indica una ligera tendencia a la infraestimación sin
+relevancia práctica.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  NUEVA SECCIÓN 5.5 — INSERTAR ANTES DE "Aplicación desarrollada"          ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\section{Evaluación en días festivos}
+\label{sec:festivos}
+
+El análisis exploratorio estableció que cerca del 70\,\% de las anomalías se
+concentraba en días festivos, y sobre esa base se incorporaron las variables de
+calendario. Procede verificar de forma explícita que dichas variables cumplen su
+cometido, para lo cual se emplea el conjunto de evaluación dirigido descrito en la
+sección~\ref{sec:validacion}.
+
+\begin{table}[H]
+\centering
+\caption{Rendimiento en los ocho días festivos evaluados}
+\label{tab:festivos}
+\begin{tabular}{|l|r|r|r|r|}
+\hline
+\rowcolor{grisclaro}
+\textbf{Modelo} & \textbf{MAPE en} & \textbf{Peor} & \textbf{MAPE} &
+\textbf{Penali-} \\
+\rowcolor{grisclaro}
+ & \textbf{festivos} & \textbf{festivo} & \textbf{ordinario} & \textbf{zación} \\
+\hline
+XGBoost         & 3,32\,\% & 7,02\,\% & 1,65\,\% & 2,01 \\
+\hline
+Random Forest   & 4,10\,\% & 8,31\,\% & 1,86\,\% & 2,21 \\
+\hline
+Ingenuo diario  & 14,12\,\% & 19,52\,\% & 4,98\,\% & 2,84 \\
+\hline
+Ingenuo semanal & 16,63\,\% & 40,68\,\% & 3,92\,\% & 4,24 \\
+\hline
+\end{tabular}
+\end{table}
+
+La columna de penalización expresa el cociente entre el error en festivo y el
+error en día ordinario. Un valor próximo a la unidad indicaría que el modelo
+aprovecha íntegramente la información de calendario.
+
+El caso más ilustrativo corresponde al 25 de diciembre: el modelo ingenuo semanal
+alcanza un error del \textbf{40,68\,\%}, frente al \textbf{4,74\,\%} de XGBoost.
+La diferencia es de casi un orden de magnitud y responde a una causa evidente: el
+modelo ingenuo compara la Navidad con el miércoles precedente, mientras que el
+modelo de aprendizaje automático dispone de la indicación de festividad.
+
+\subsection*{Festivos nacionales y autonómicos}
+
+Una primera versión de este análisis reveló un patrón inesperado. Los modelos de
+aprendizaje automático superaban ampliamente a la línea base en los festivos
+nacionales, pero no en los autonómicos, donde el error resultaba comparable e
+incluso superior.
+
+La causa admite una explicación precisa. La serie de demanda es
+\textbf{peninsular}, mientras que el calendario empleado correspondía a la
+\textbf{Comunidad de Madrid}. El 2 de mayo, festividad exclusivamente madrileña,
+el modelo recibía la indicación de festivo y anticipaba una caída pronunciada del
+consumo; sin embargo, el resto del país mantenía su actividad ordinaria y la
+demanda apenas descendía.
+
+La solución adoptada sustituye la variable binaria por una \textbf{intensidad
+ponderada por población}: la fracción de habitantes del territorio nacional para
+los que cada fecha constituye día festivo. Se consulta a tal efecto el calendario
+de las diecinueve subdivisiones y se pondera por población.
+
+\begin{table}[H]
+\centering
+\caption{Intensidad de festivo según el alcance territorial}
+\label{tab:intensidad}
+\begin{tabular}{|l|l|c|c|}
+\hline
+\rowcolor{grisclaro}
+\textbf{Fecha} & \textbf{Festividad} & \textbf{Comunidades} & \textbf{Intensidad} \\
+\hline
+25 de diciembre & Natividad del Señor & 19 & 1,000 \\
+\hline
+28 de marzo & Jueves Santo & 17 & 0,725 \\
+\hline
+25 de julio & Santiago Apóstol & 5 & 0,271 \\
+\hline
+2 de mayo & Fiesta de la Comunidad de Madrid & 1 & 0,143 \\
+\hline
+\end{tabular}
+\end{table}
+
+Resulta pertinente señalar que una simple distinción binaria entre festivos
+nacionales y autonómicos tampoco habría resuelto el problema. El Jueves Santo
+figura como autonómico en las fuentes de calendario, pero afecta en realidad al
+72,5\,\% de la población. La representación mediante una magnitud continua es la
+única que recoge adecuadamente este matiz.
+
+\subsection*{Efecto de la corrección}
+
+El resultado sobre los dos casos problemáticos fue sustancial. El error del 2 de
+mayo descendió del \textbf{10,62\,\% al 2,14\,\%}, y el de Santiago Apóstol del
+4,28\,\% al 2,89\,\%. En términos agregados, el error medio en festivos pasó del
+4,81\,\% al 3,32\,\%, con una reducción de la penalización de 2,95 a 2,01.
+
+El rendimiento global permaneció prácticamente inalterado, como cabía esperar: las
+festividades representan alrededor de veinte días al año y su peso sobre la
+métrica media es reducido. Una corrección que mejora los casos difíciles sin
+degradar el caso general constituye el resultado deseable.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE LA SECCIÓN 5.5 ACTUAL, QUE PASA A SER 5.6                      ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\section{Aplicación desarrollada}
+
+% ─────────────────────────────────────────────────────────────────────────────
+% PENDIENTE: incorporar una captura de la aplicación en funcionamiento.
+% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{figure}[H]
+\centering
+% \includegraphics[width=\textwidth]{figuras/22_captura_aplicacion.png}
+\framebox[0.9\textwidth][c]{\rule{0pt}{6cm}\textit{[Captura de la aplicación]}}
+\caption{Interfaz de la aplicación web desarrollada}
+\label{fig:app}
+\end{figure}
+
+La aplicación materializa el objetivo específico OE7. Su elemento central es la
+traducción de la predicción numérica a una recomendación en lenguaje natural,
+generada automáticamente a partir de las franjas horarias de menor demanda
+prevista.
+
+\subsection*{Degradación del esquema recursivo}
+
+El modelo opera con un horizonte nativo de veinticuatro horas. La extensión a
+cuarenta y ocho mediante realimentación de las predicciones introduce una
+acumulación de error que conviene cuantificar.
+
+% COMPLETAR con los valores que devuelve la celda 6 del notebook 04:
+%   MAPE horas  1–24: __ %
+%   MAPE horas 25–48: __ %
+
+La aplicación advierte de esta circunstancia cuando el usuario selecciona el
+horizonte extendido.
+
+\subsection*{Comportamiento ante fallos de las fuentes}
+
+Durante el desarrollo se constató que la interfaz REData devuelve errores de
+servidor ante peticiones que abarcan periodos extensos, dado que publica con
+resolución de diez minutos. La descarga se fragmentó en consecuencia en bloques de
+cinco días, con tolerancia a fallos parciales: si un bloque concreto no responde,
+los restantes se procesan y la aplicación advierte de la posible existencia de
+huecos.
+
+Esta consideración excede el ámbito estrictamente académico, pero resulta
+determinante para un sistema destinado a funcionar de forma continuada.
+
+
+% ╔═══════════════════════════════════════════════════════════════════════════╗
+% ║  SUSTITUYE EL CAPÍTULO 6 COMPLETO                                         ║
+% ╚═══════════════════════════════════════════════════════════════════════════╝
+
+\chapter{Conclusiones}
+
+\section{Cumplimiento de los objetivos}
+
+Se revisa a continuación el grado de consecución de cada objetivo específico.
+
+\paragraph{OE1 — Análisis del comportamiento histórico.}
+\textbf{Alcanzado.} El análisis exploratorio caracterizó la serie e identificó las
+tres escalas de periodicidad presentes. El tratamiento de valores ausentes reveló
+además una circunstancia metodológicamente relevante: las ausencias no figuraban
+como valores nulos sino como registros inexistentes en el índice temporal, de modo
+que los procedimientos habituales de interpolación no habrían producido efecto
+alguno.
+
+\paragraph{OE2 — Incorporación de variables exógenas.}
+\textbf{Alcanzado.} Se integraron las variables meteorológicas de AEMET y el
+calendario laboral. Este último evolucionó durante el trabajo desde una variable
+binaria hasta una intensidad ponderada por población, tras detectarse la
+discordancia entre el ámbito territorial de la demanda y el del calendario.
+
+\paragraph{OE3 — Aplicación de series de Fourier.}
+\textbf{Alcanzado.} El análisis espectral identificó los periodos de 24, 12 y 168
+horas, resultado que fundamenta empíricamente la selección de los desfases
+temporales empleados como predictores.
+
+\paragraph{OE4 — Desarrollo y comparación de modelos.}
+\textbf{Alcanzado y superado.} Se evaluaron diez formulaciones frente a las seis
+inicialmente previstas, incorporando tres modelos ingenuos como línea base
+adicional.
+
+\paragraph{OE5 — Evaluación con control del sobreajuste.}
+\textbf{Alcanzado.} Se registraron las métricas dentro y fuera de muestra para
+todos los modelos, con la precisión relativa a su distinta interpretabilidad en
+formulaciones estadísticas y de aprendizaje automático.
+
+\paragraph{OE6 — Identificación de los factores determinantes.}
+\textbf{Alcanzado.} Mediante importancia nativa y valores SHAP. El resultado
+converge con el del análisis exploratorio, lo que refuerza ambas vías.
+
+\paragraph{OE7 — Despliegue de la aplicación.}
+\textbf{Alcanzado.} La aplicación se encuentra desplegada y accesible
+públicamente, con predicción a 24 y 48 horas, identificación de franjas favorables
+y recomendaciones en lenguaje natural.
+
+\subsection*{Cumplimiento de las métricas objetivo}
+
+\begin{table}[H]
+\centering
+\caption{Grado de consecución de las métricas establecidas}
+\label{tab:objetivos}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\rowcolor{grisclaro}
+\textbf{Métrica} & \textbf{Objetivo} & \textbf{Obtenido} & \textbf{Estado} \\
+\hline
+MAPE & $<$ 8\,\% & 1,34\,\% & Superado \\
+\hline
+MAE sobre consumo medio & $<$ 5\,\% & 1,7\,\% & Superado \\
+\hline
+Mejora sobre línea base & Superarla & $+$56,2\,\% & Superado \\
+\hline
+Aplicación desplegada & 1 URL pública & Sí & Cumplido \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\section{Principales aportaciones}
+
+\subsection*{Un sistema completo, no un experimento}
+
+La aportación principal no reside en el valor concreto del error alcanzado, sino
+en haber recorrido el ciclo íntegro desde el dato abierto hasta la aplicación
+accesible. Ese recorrido obligó a resolver cuestiones que un estudio puramente
+comparativo no llega a plantearse: la disponibilidad efectiva de cada variable en
+el instante de predicción, la coherencia entre el código de entrenamiento y el de
+explotación, o el comportamiento del sistema ante el fallo de una fuente externa.
+
+\subsection*{Tratamiento riguroso y documentado de los datos}
+
+Tres decisiones metodológicas merecen destacarse por su carácter no evidente:
+
+\begin{enumerate}
+  \item \textbf{El reindexado previo a la imputación.} Las ausencias se
+        manifestaban como registros inexistentes, no como valores nulos. Sin
+        reindexar, la interpolación no habría producido efecto y la verificación
+        posterior habría comparado la serie consigo misma.
+
+  \item \textbf{La estrategia escalonada de imputación.} El desplazamiento
+        semanal para huecos extensos preserva el perfil diario, que una
+        interpolación lineal destruiría.
+
+  \item \textbf{La detección de anomalías condicionada al contexto.} La regla del
+        rango intercuartílico no identificaba ningún valor atípico; el
+        procedimiento sobre el residuo respecto al perfil temporal detectó 555.
+\end{enumerate}
+
+\subsection*{Cuantificación de la fuga de información}
+
+El trabajo no se limita a evitar la fuga de información, sino que mide su efecto:
+la inclusión de variables no disponibles en el instante de predicción reduce el
+error aparente en un 59\,\%. Esta cuantificación documenta una decisión
+metodológica que la mayoría de los trabajos publicados no llega a explicitar.
+
+\subsection*{Validación de la hipótesis sobre el efecto del calendario}
+
+La cadena argumental del trabajo se cierra de forma completa. El análisis
+exploratorio identificó que cerca del 70\,\% de las anomalías se concentraba en
+festivos; ese hallazgo motivó la incorporación de las variables de calendario; y
+la evaluación dirigida verificó que dichas variables cumplen su cometido, con
+diferencias de hasta un orden de magnitud frente a los modelos que carecen de
+ellas.
+
+\subsection*{Detección y corrección de una limitación propia}
+
+La discordancia entre el ámbito territorial de la demanda —peninsular— y el del
+calendario —autonómico— se detectó al analizar los resultados, no se conocía de
+antemano. La solución adoptada, una intensidad ponderada por población, corrigió
+el error del 2 de mayo del 10,62\,\% al 2,14\,\% sin degradar el rendimiento
+general.
+
+
+\section{Limitaciones del trabajo}
+
+\paragraph{Resolución de las variables meteorológicas.}
+Los valores climatológicos de AEMET tienen periodicidad diaria, mientras que la
+variable objetivo es horaria. La propagación del valor diario a las veinticuatro
+horas del día renuncia al ciclo térmico intradiario.
+
+\paragraph{Representatividad de la estación meteorológica.}
+Se emplea una única estación —Madrid-Retiro— como aproximación de las condiciones
+peninsulares. La heterogeneidad climática del territorio nacional no queda
+recogida.
+
+\paragraph{Periodo de evaluación acotado.}
+Los catorce orígenes cubren aproximadamente setenta días, entre octubre y
+diciembre de 2024. El signo negativo de la diferencia entre entrenamiento y
+producción en el modelo Ridge sugiere que dicho periodo resulta más estable que la
+media del histórico, por lo que las cifras de sobreajuste podrían estar
+infravaloradas.
+
+\paragraph{Ausencia de información sobre generación.}
+El sistema no incorpora datos de generación renovable, factor que influye
+sensiblemente sobre el precio y que podría mejorar la calidad de las
+recomendaciones económicas.
+
+\paragraph{Extensión recursiva del horizonte.}
+La predicción más allá de veinticuatro horas se obtiene realimentando las
+predicciones anteriores, procedimiento que acumula error. Un modelo entrenado
+específicamente para cuarenta y ocho horas obtendría mejores resultados.
+
+\paragraph{Relación entre demanda y precio.}
+La aplicación emplea la demanda prevista como indicador aproximado del precio. La
+relación entre ambas magnitudes es estrecha pero no determinista: la composición
+del parque generador disponible introduce una variabilidad no contemplada.
+
+
+\section{Líneas de trabajo futuro}
+
+\paragraph{Predicción directa del precio.}
+Incorporar el precio del mercado diario como variable objetivo adicional
+permitiría ofrecer recomendaciones económicas directas en lugar de aproximadas.
+
+\paragraph{Meteorología de resolución horaria.}
+El reanálisis ERA5 del programa Copernicus proporciona temperatura horaria
+histórica, lo que eliminaría la limitación principal de las variables
+meteorológicas actuales.
+
+\paragraph{Modelos fundacionales para series temporales.}
+Han surgido recientemente modelos preentrenados de propósito general para
+predicción de series temporales, capaces de operar sin entrenamiento específico
+sobre el conjunto de destino. Su evaluación comparativa frente al enfoque adoptado
+constituye una línea de continuación natural.
+
+\paragraph{Combinación de modelos.}
+La evidencia de las competiciones M \parencite{makridakis2020m4} indica que la
+combinación de predicciones mejora sistemáticamente la robustez. Un promedio
+ponderado de XGBoost y LightGBM resultaría inmediato de implementar.
+
+\paragraph{Desagregación territorial.}
+La disponibilidad de demanda por comunidad autónoma permitiría emplear el
+calendario correspondiente a cada territorio, resolviendo de raíz la limitación
+que motivó la variable de intensidad ponderada.
+
+\paragraph{Integración del consumo individual.}
+La incorporación de los datos de consumo del propio usuario, accesibles a través
+de las distribuidoras, permitiría pasar de una recomendación general a una
+estimación personalizada del ahorro.

@@ -1,0 +1,82 @@
+% =============================================================================
+%  PORTADA OFICIAL VIU
+%  Reproduce la plantilla P11_06_F08b_Plantilla_TFT_individual_v02
+%
+%  REQUISITOS
+%    1. Sube la imagen  figuras/portada_viu.jpg  al proyecto de Overleaf
+%    2. Preámbulo (ya tienes tikz cargado; falta solo esta línea):
+%
+%         \usepackage{eso-pic}
+%
+%  USO
+%    Sustituye tu bloque \begin{titlepage}...\end{titlepage} por esto.
+%
+%  NOTA: el código evita los caracteres < y >, que babel con la opción
+%  'spanish' convierte en activos y romperían la sintaxis de TikZ.
+% =============================================================================
+
+\begingroup
+\thispagestyle{empty}
+
+% ── Fondo a página completa ────────────────────────────────────────────────
+\AddToShipoutPictureBG*{%
+  \put(0,0){\includegraphics[width=\paperwidth,height=\paperheight]%
+            {figuras/portada_viu.jpg}}%
+}
+
+\begin{tikzpicture}[remember picture, overlay,
+                    every node/.style={inner sep=0pt, outer sep=0pt}]
+
+  % Origen de coordenadas: esquina superior izquierda de la página.
+  % Las distancias están medidas sobre la plantilla original.
+  \coordinate (org) at (current page.north west);
+
+  % ── Título ──────────────────────────────────────────────────────────────
+  % El fondo blanco invade por la derecha: a y=42mm el naranja solo llega a
+  % 111mm, de modo que el ancho del título no puede exceder los 7cm.
+  \node[anchor=north west, text width=7.0cm, align=left]
+    at ($(org)+(3.1cm,-2.6cm)$)
+    {\color{white}\sffamily\bfseries\fontsize{17}{21}\selectfont
+     Predicción de demanda energética mediante Machine Learning
+     y datos abiertos};
+
+  % ── Fecha ───────────────────────────────────────────────────────────────
+  \node[anchor=north west]
+    at ($(org)+(3.1cm,-8.2cm)$)
+    {\color{white}\sffamily\fontsize{11}{13}\selectfont 00 Mes 2026};
+
+  % ── Barras verticales de separación ─────────────────────────────────────
+  \foreach \x in {2.81, 8.19, 13.99}{%
+    \fill[white] ($(org)+(\x cm,-20.59cm)$) rectangle ++(0.17cm,-5.1cm);
+  }
+
+  % ── Columna 1: titulación ───────────────────────────────────────────────
+  \node[anchor=north west, text width=5.0cm, align=left]
+    at ($(org)+(3.15cm,-21.2cm)$)
+    {\color{white}\sffamily\fontsize{10.5}{18}\selectfont
+     Titulación:\\[2pt]
+     Máster Universitario en Big Data y Ciencia de Datos\\[6pt]
+     Curso académico\\[2pt]
+     2025 -- 2026};
+
+  % ── Columna 2: alumno y dirección ───────────────────────────────────────
+  \node[anchor=north west, text width=5.4cm, align=left]
+    at ($(org)+(8.53cm,-21.2cm)$)
+    {\color{white}\sffamily\fontsize{10.5}{18}\selectfont
+     Alumno/a:\\[2pt]
+     García Peña, Roberto\\[6pt]
+     D.N.I: 17458202Y\\[6pt]
+     Director/a de TFT:\\[2pt]
+     Gonzalo Surribas Sayago};
+
+  % ── Columna 3: convocatoria ─────────────────────────────────────────────
+  \node[anchor=north west, text width=4.5cm, align=left]
+    at ($(org)+(14.33cm,-21.2cm)$)
+    {\color{white}\sffamily\fontsize{10.5}{18}\selectfont
+     Convocatoria:\\[2pt]
+     Primera};
+
+\end{tikzpicture}
+
+\clearpage
+\endgroup
