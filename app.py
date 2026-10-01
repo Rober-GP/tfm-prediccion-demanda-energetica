@@ -290,7 +290,7 @@ intensidad de festivo ponderada por población y variables de temperatura.
 **Horizonte nativo:** {info['horizonte']} horas. Las predicciones más allá se
 generan de forma recursiva.
 
-**Rendimiento sobre el conjunto de validación:**
+**Comprobación sobre el último mes de datos (bloque continuo de 30 días):**
 """)
 
     metricas = {k: v for k, v in info.items()

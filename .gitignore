@@ -14,6 +14,7 @@ datos/*
 
 *.parquet
 *.csv
+!resultados/*.csv
 *.xlsx
 *.db
 *.sqlite3
